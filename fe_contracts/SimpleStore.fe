@@ -1,0 +1,15 @@
+contract SimpleStore {
+    val: u256
+
+    pub fn __init__(mut self, val: u256) {
+        self.val = val
+    }
+
+    pub fn store(mut self, val: u256) {
+        self.val = val;
+    }
+
+    pub fn get(self) -> u256 {
+        return self.val
+    }
+}
