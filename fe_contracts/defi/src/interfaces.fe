@@ -1,0 +1,10 @@
+pub contract ERC20 {
+
+    pub fn approve(mut self, mut ctx: Context, spender: address, value: u256) -> bool {
+        revert
+    }
+
+    pub fn transferFrom(mut self, mut ctx: Context, sender: address, recipient: address, value: u256) -> bool {
+        revert
+    }
+}
