@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity >=0.8.13;
+pragma solidity >=0.4.22 <0.9.0;
+pragma abicoder v2;
 
 ///@notice This cheat codes interface is named _CheatCodes so you can use the CheatCodes interface in other testing files without errors
 interface _CheatCodes {
@@ -19,7 +20,7 @@ library Fe {
         compile_cmds[0] = cheatCodes.envString("FE_PATH");
         compile_cmds[1] = "build";
         compile_cmds[2] = "--overwrite";
-        compile_cmds[3] = string.concat("fe_contracts/", fileName, ".fe");
+        compile_cmds[3] = string(abi.encodePacked("fe_contracts/", string(abi.encodePacked(fileName, ".fe"))));
         cheatCodes.ffi(compile_cmds);
     }
 
@@ -30,7 +31,7 @@ library Fe {
         compile_cmds[0] = cheatCodes.envString("FE_PATH");
         compile_cmds[1] = "build";
         compile_cmds[2] = "--overwrite";
-        compile_cmds[3] = string.concat("fe_contracts/", ingotName);
+        compile_cmds[3] = string(abi.encodePacked("fe_contracts/", ingotName));
         cheatCodes.ffi(compile_cmds);
     }
 
@@ -42,24 +43,21 @@ library Fe {
     function deployContract(string memory contractName) public returns (address) {
         string[] memory cmds = new string[](2);
         cmds[0] = "cat";
-        cmds[1] = string.concat("output/", contractName, "/", contractName, ".bin");
+        string(abi.encodePacked("output/", string(abi.encodePacked(contractName, string(abi.encodePacked("/", string(abi.encodePacked(contractName, ".bin"))))))));
+        cmds[1] = string(abi.encodePacked("output/", string(abi.encodePacked(contractName, string(abi.encodePacked("/", string(abi.encodePacked(contractName, ".bin")))))))); // string.concat("output/", contractName, "/", contractName, ".bin");
 
-        ///@notice compile the Fe contract and return the bytecode
         bytes memory bytecode = cheatCodes.ffi(cmds);
 
-        ///@notice deploy the bytecode with the create instruction
         address deployedAddress;
         assembly {
             deployedAddress := create(0, add(bytecode, 0x20), mload(bytecode))
         }
 
-        ///@notice check that the deployment was successful
         require(
             deployedAddress != address(0),
             "FeDeployer could not deploy contract"
         );
 
-        ///@notice return the address that the contract was deployed to
         return deployedAddress;
     }
 
@@ -73,27 +71,23 @@ library Fe {
     {
         string[] memory cmds = new string[](2);
         cmds[0] = "cat";
-        cmds[1] = string.concat("output/", contractName, "/", contractName, ".bin");
+        cmds[1] = string(abi.encodePacked("output/", string(abi.encodePacked(contractName, string(abi.encodePacked("/", string(abi.encodePacked(contractName, ".bin")))))))); // string.concat("output/", contractName, "/", contractName, ".bin");
 
-        ///@notice compile the Fe contract and return the bytecode
         bytes memory _bytecode = cheatCodes.ffi(cmds);
 
         //add args to the deployment bytecode
         bytes memory bytecode = abi.encodePacked(_bytecode, args);
-
-        ///@notice deploy the bytecode with the create instruction
+        
         address deployedAddress;
         assembly {
             deployedAddress := create(0, add(bytecode, 0x20), mload(bytecode))
         }
 
-        ///@notice check that the deployment was successful
         require(
             deployedAddress != address(0),
             "FeDeployer could not deploy contract"
         );
 
-        ///@notice return the address that the contract was deployed to
         return deployedAddress;
     }
 }
