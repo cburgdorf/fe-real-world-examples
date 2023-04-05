@@ -1,26 +1,8 @@
 
 use std::traits::{Min, Max}
 use raw_call::{RawCallHelper, MemoryEncoding}
-use interfaces::ERC20
+use interfaces::{ERC20, ISwapRouter, ExactInputSingleParams}
 
-// Poor man's interfaces
-// FIXME: We can not move this because it triggers the ingot impl check but I think it's a bug here
-pub contract ISwapRouter {
-    pub fn exactInputSingle(self, params: ExactInputSingleParams) -> u256 {
-        revert
-    }
-}
-
-pub struct ExactInputSingleParams {
-    pub tokenIn: address
-    pub tokenOut: address
-    pub fee: u16
-    pub recipient: address
-    pub deadline: u256
-    pub amountIn: u256
-    pub amountOutMinimum: u256
-    pub sqrtPriceLimitX96: u128
-}
 
 impl MemoryEncoding for ExactInputSingleParams {
 
@@ -33,6 +15,9 @@ impl MemoryEncoding for ExactInputSingleParams {
     }
 }
 
+const DAI: address = 0x6B175474E89094C44Da98b954EedeAC495271d0F
+const WETH9: address = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+
 
 // For this example, we will set the pool fee to 0.3%.
 const poolFee: u16 = 3000
@@ -41,14 +26,8 @@ contract SwapExamples {
 
     swapRouter: ISwapRouter
 
-    DAI: ERC20
-    WETH9: ERC20
-
     pub fn __init__(mut self, _swapRouter: ISwapRouter) {
-        self.swapRouter = _swapRouter;
-        // TODO: allow addresses to be used as module constants
-        self.DAI = ERC20(address(0x6B175474E89094C44Da98b954EedeAC495271d0F))
-        self.WETH9 = ERC20(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2))
+        self.swapRouter = _swapRouter
     }
 
     pub fn swap_exact_input_single(mut self, mut ctx: Context, amountIn: u256) -> u256 {
@@ -56,20 +35,20 @@ contract SwapExamples {
 
         // Transfer the specified amount of DAI to this contract.
         //TransferHelper.safeTransferFrom(DAI, msg.sender, address(this), amountIn);
-        self.DAI.transferFrom(ctx, sender: ctx.msg_sender(), recipient: ctx.self_address(), value: amountIn)
+        ERC20(DAI).transferFrom(ctx, sender: ctx.msg_sender(), recipient: ctx.self_address(), value: amountIn)
         
 
         // // Approve the router to spend DAI.
         // //TransferHelper.safeApprove(DAI, address(swapRouter), amountIn);
-        self.DAI.approve(ctx, spender: address(self.swapRouter), value: amountIn)
+        ERC20(DAI).approve(ctx, spender: address(self.swapRouter), value: amountIn)
 
 
         // // Naively set amountOutMinimum to 0. In production, use an oracle or other data source to choose a safer value for amountOutMinimum.
         // // We also set the sqrtPriceLimitx96 to be 0 to ensure we swap our exact input amount.
         
          let params: ExactInputSingleParams = ExactInputSingleParams(
-             tokenIn: address(self.DAI),
-             tokenOut: address(self.WETH9),
+             tokenIn: DAI,
+             tokenOut: WETH9,
              fee: 3000,
              recipient: ctx.msg_sender(),
              deadline: ctx.block_timestamp(),
@@ -84,9 +63,7 @@ contract SwapExamples {
     }
 
     pub unsafe fn handle_swap(self, params: ExactInputSingleParams) -> u256 {
-        // FIXME: something wrong with resolving generics on RawCallHelper::call
-        let raw_call_helper: RawCallHelper = RawCallHelper()
-        raw_call_helper.call(address(self.swapRouter), 0x414bf389, data: params)
+        RawCallHelper::call(address(self.swapRouter), 0x414bf389, data: params)
 
         // Caller has to handle the return data manually. This could be nicer if Fe allowed function
         // return types to be generic.

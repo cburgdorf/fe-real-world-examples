@@ -20,7 +20,7 @@ pub struct RawCallHelper {
     }
 
     /// Call a function directly by its selector on the given address. 
-    pub unsafe fn call<T: MemoryEncoding>(self, _ addr: address, _ selector: u32, data: T){
+    pub unsafe fn call<T: MemoryEncoding>(_ addr: address, _ selector: u32, data: T){
         let input_offset: u256 = RawCallHelper::avail()
         [selector]
         data.write_mem()

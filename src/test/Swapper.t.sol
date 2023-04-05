@@ -17,7 +17,7 @@ address constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
 address constant WETH9 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
 // Binance wallet with DAI
-address constant BINANCE_ACCOUNT = 0xF977814e90dA44bFA03b6295A0616a897441aceC;
+address constant BINANCE_ACCOUNT = 0x28C6c06298d514Db089934071355E5743bf21d60;
 
 contract SwapTest is Test {
     ISwapper public swapper;
