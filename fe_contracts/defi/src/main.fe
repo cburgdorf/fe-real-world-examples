@@ -34,19 +34,15 @@ contract SwapExamples {
         // msg.sender must approve this contract
 
         // Transfer the specified amount of DAI to this contract.
-        //TransferHelper.safeTransferFrom(DAI, msg.sender, address(this), amountIn);
         ERC20(DAI).transferFrom(ctx, sender: ctx.msg_sender(), recipient: ctx.self_address(), value: amountIn)
-        
 
-        // // Approve the router to spend DAI.
-        // //TransferHelper.safeApprove(DAI, address(swapRouter), amountIn);
+        // Approve the router to spend DAI.
+        // TransferHelper.safeApprove(DAI, address(swapRouter), amountIn);
         ERC20(DAI).approve(ctx, spender: address(self.swapRouter), value: amountIn)
 
-
-        // // Naively set amountOutMinimum to 0. In production, use an oracle or other data source to choose a safer value for amountOutMinimum.
-        // // We also set the sqrtPriceLimitx96 to be 0 to ensure we swap our exact input amount.
-        
-         let params: ExactInputSingleParams = ExactInputSingleParams(
+        // Naively set amountOutMinimum to 0. In production, use an oracle or other data source to choose a safer value for amountOutMinimum.
+        // We also set the sqrtPriceLimitx96 to be 0 to ensure we swap our exact input amount
+        let params: ExactInputSingleParams = ExactInputSingleParams(
              tokenIn: DAI,
              tokenOut: WETH9,
              fee: 3000,
@@ -57,22 +53,10 @@ contract SwapExamples {
              sqrtPriceLimitX96: 0,
          );
 
-        unsafe {
-            return self.handle_swap(params)
-        }
+        // We can not just call self.swapRouter.exactInputSingle(params) because the function selector uses
+        // types such as `uint160` and `uint24` that do not have an equivalent in Fe and hence we can not
+        // match the function selector. The `RawCallHelper` relies on `unsafe` code work around that.
+        return RawCallHelper::call(address(self.swapRouter), 0x414bf389, data: params).to_u256()
     }
-
-    pub unsafe fn handle_swap(self, params: ExactInputSingleParams) -> u256 {
-        RawCallHelper::call(address(self.swapRouter), 0x414bf389, data: params)
-
-        // Caller has to handle the return data manually. This could be nicer if Fe allowed function
-        // return types to be generic.
-        let output: u256 = RawCallHelper::avail()
-        let output_size: u256 = std::evm::return_data_size()
-        std::evm::return_data_copy(to_offset: output, from_offset: 0, len: output_size)
-        let ret: u256 = std::evm::mload(offset: output)
-        return ret
-    }
-
 }
 
