@@ -14,6 +14,14 @@ To set up Foundry x Fe, first make sure you have [Fe](https://fe-lang.org/) inst
 
 Then follow the [Foundry installation guide](https://book.getfoundry.sh/getting-started/installation) to install Foundry.
 
+Install dependencies:
+
+```bash
+
+$ yarn install
+
+```
+
 Set up an environment variable `MAINNET_JSON_RPC` to point to a mainnet node. For example, you can use [Alchemy](https://alchemyapi.io/) or [Infura](https://infura.io/).
 
 # Run the examples

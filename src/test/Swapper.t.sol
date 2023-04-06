@@ -52,4 +52,15 @@ contract SwapTest is Test {
       assert(new_weth_balance > initial_weth_balance);
       assertEq(new_weth_balance, initial_weth_balance + amount_out);
     }
+
+    function testLackOfContractCodeReverts() public {
+      uint256 amount_dai = 100_000;
+      ISwapper broken_swapper = ISwapper(Fe.deployContract("SwapExamples", abi.encode(address(0x0))));
+      try broken_swapper.swap_exact_input_single(amount_dai) {
+        // Call should revert if returndata is empty
+        assert(false);
+      } catch {
+
+      }
+    }
 }
