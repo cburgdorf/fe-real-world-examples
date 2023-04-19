@@ -25,17 +25,6 @@ impl MemoryEncoding for Transaction {
     }
 }
 
-impl MemoryEncoding for Array<u8, 68> {
-  fn write_mem(self) {
-    for item in self {
-      (item,)
-    }
-  }
-  fn byte_count(self) -> u16 {
-    return 68
-  }
-}
-
 contract MultiSig {
 
   tx_count: u256

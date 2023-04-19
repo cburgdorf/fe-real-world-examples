@@ -29,21 +29,6 @@ contract MultiSigTest is Test {
         multisig = IMultiSig(Fe.deployContract("MultiSig"));
     }
 
-    function testFoo() public {
-      assertEq(multisig.foo(), 5);
-    }
-
-    function testTransfer() public {
-      bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
-      address multisig_address = address(multisig);
-      vm.startPrank(BINANCE_ACCOUNT);
-      IERC20(DAI).transfer(address(multisig), 10000);
-      uint256 initial_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
-      multisig.transfer_example(data);
-      uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
-      assertEq(second_multisig_balance, initial_multisig_balance - 1);
-    }
-
     function testExecute() public {
       bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
 
