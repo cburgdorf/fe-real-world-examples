@@ -1,6 +1,7 @@
 use std::evm::call_data_load
 use raw_call::{RawCallHelper, MemoryEncoding}
 
+const MAX_OWNER_COUNT: u8 = 50
 const TX_MAX_DATA_SIZE: u256 = 128
 
 type TransactionData = Array<u8, { TX_MAX_DATA_SIZE }>
@@ -39,11 +40,39 @@ contract MultiSig {
 
   tx_count: u256
   transactions: Map<u256, Transaction>
+  confirmations: Map<u256, Map<address, bool>>
+  required_confirmations: u8
+  owners: Array<address, { MAX_OWNER_COUNT }>
+
+  pub fn __init__(mut self) {
+    // Hardcoding a single owner for now
+    self.owners[0] = address(0x627306090abaB3A6e1400e9345bC60c78a8BEf57)
+    self.required_confirmations = 1
+  }
+
+  fn validate_not_executed(self, tx_id: u256) {
+    if self.transactions[tx_id].executed {
+      revert
+    }
+  }
 
   pub fn transfer_example(self, data: Array<u8, 68>) {
     RawCallHelper::call(address(0x6B175474E89094C44Da98b954EedeAC495271d0F), 0, data)
   }
 
+  /// @dev Returns the confirmation status of a transaction.
+  pub fn is_confirmed(self, tx_id: u256) -> bool {
+    let mut count: u8 = 0
+    for owner in self.owners.to_mem() {
+      if self.confirmations[tx_id][owner] {
+        count += 1
+      }
+      if count == self.required_confirmations {
+        return true
+      }
+    }
+    return false
+  }
 
   // TODO: Add checks
   // TODO: Remove visibility
@@ -60,13 +89,24 @@ contract MultiSig {
     return tx_id
   }
 
+
+  /// Allows an owner to confirm a transaction
+  pub fn confirm_transaction(mut self, ctx: Context, tx_id: u256) {
+    //TODO: add checks
+    self.confirmations[tx_id][ctx.msg_sender()] = true
+    self.execute_transaction(tx_id)
+  }
+
+
   // TODO: Add validations
-  pub fn execute_transaction(self, tx_id: u256) {
-    
-    let mut tx: Transaction = self.transactions[tx_id].to_mem()
-    tx.executed = true
-    // TODO: Handle failure
-    RawCallHelper::call(tx.destination, tx.value, tx)
+  pub fn execute_transaction(mut self, tx_id: u256) {
+    self.validate_not_executed(tx_id);
+    if self.is_confirmed(tx_id) {
+      let mut tx: Transaction = self.transactions[tx_id].to_mem()
+      self.transactions[tx_id].executed = true
+      // TODO: Handle failure
+      RawCallHelper::call(tx.destination, tx.value, tx)
+    }
   }
 
   pub fn execute(self, destination: address, value: u256, data: TransactionData, data_length: u16) {
