@@ -1,0 +1,94 @@
+use std::evm::call_data_load
+use raw_call::{RawCallHelper, MemoryEncoding}
+
+const TX_MAX_DATA_SIZE: u256 = 128
+
+type TransactionData = Array<u8, { TX_MAX_DATA_SIZE }>
+
+struct Transaction {
+    pub destination: address 
+    pub value: u256 
+    pub data: TransactionData
+    pub data_length: u16
+    pub executed: bool
+}
+
+impl MemoryEncoding for Transaction {
+    fn write_mem(self) {
+      // Very hacky way to copy the data into a fresh segment of memory
+      // In the future, the compiler would likely optimize that away
+      let mut x: TransactionData = self.data
+    }
+    fn byte_count(self) -> u16 {
+        return self.data_length
+    }
+}
+
+impl MemoryEncoding for Array<u8, 68> {
+  fn write_mem(self) {
+    for item in self {
+      (item,)
+    }
+  }
+  fn byte_count(self) -> u16 {
+    return 68
+  }
+}
+
+contract MultiSig {
+
+  tx_count: u256
+  transactions: Map<u256, Transaction>
+
+  pub fn transfer_example(self, data: Array<u8, 68>) {
+    RawCallHelper::call(address(0x6B175474E89094C44Da98b954EedeAC495271d0F), 0, data)
+  }
+
+
+  // TODO: Add checks
+  // TODO: Remove visibility
+  pub fn add_transaction(mut self, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
+    let tx_id: u256 = self.tx_count
+    self.transactions[tx_id] = Transaction (
+      destination,
+      value,
+      data,
+      data_length,
+      executed: false
+    )
+    self.tx_count += 1
+    return tx_id
+  }
+
+  // TODO: Add validations
+  pub fn execute_transaction(self, tx_id: u256) {
+    
+    let mut tx: Transaction = self.transactions[tx_id].to_mem()
+    tx.executed = true
+    // TODO: Handle failure
+    RawCallHelper::call(tx.destination, tx.value, tx)
+  }
+
+  pub fn execute(self, destination: address, value: u256, data: TransactionData, data_length: u16) {
+    let mut tx: Transaction = Transaction (
+      destination,
+      value,
+      data: data,
+      data_length,
+      executed: false
+    )
+    
+    if tx.executed {
+      return
+    }
+
+    tx.executed = true
+
+    RawCallHelper::call(tx.destination, tx.value, tx)
+  }
+
+
+  pub fn foo(self) -> u256 {
+    return 5
+  }
+}
