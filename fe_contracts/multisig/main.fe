@@ -60,8 +60,7 @@ contract MultiSig {
   }
 
   // TODO: Add checks
-  // TODO: Remove visibility
-  pub fn add_transaction(mut self, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
+  fn add_transaction(mut self, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
     let tx_id: u256 = self.tx_count
     self.transactions[tx_id] = Transaction (
       destination,
@@ -74,6 +73,12 @@ contract MultiSig {
     return tx_id
   }
 
+  // Allows an owner to submit and confirm a transaction.
+  pub fn submit_transaction(mut self, ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
+    let tx_id: u256 = self.add_transaction(destination, value, data, data_length)
+    self.confirm_transaction(ctx, tx_id)
+    return tx_id
+  }
 
   /// Allows an owner to confirm a transaction
   pub fn confirm_transaction(mut self, ctx: Context, tx_id: u256) {
@@ -92,28 +97,5 @@ contract MultiSig {
       // TODO: Handle failure
       RawCallHelper::call(tx.destination, tx.value, tx)
     }
-  }
-
-  pub fn execute(self, destination: address, value: u256, data: TransactionData, data_length: u16) {
-    let mut tx: Transaction = Transaction (
-      destination,
-      value,
-      data: data,
-      data_length,
-      executed: false
-    )
-    
-    if tx.executed {
-      return
-    }
-
-    tx.executed = true
-
-    RawCallHelper::call(tx.destination, tx.value, tx)
-  }
-
-
-  pub fn foo(self) -> u256 {
-    return 5
   }
 }

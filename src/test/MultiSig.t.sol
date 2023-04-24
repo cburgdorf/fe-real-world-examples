@@ -20,6 +20,8 @@ function pad_to_length(bytes memory data, uint256 length) pure returns (bytes me
 }
 
 uint16 constant DATA_LENGTH = 128;
+address constant FIRST_OWNER = 0x627306090abaB3A6e1400e9345bC60c78a8BEf57;
+address constant SECOND_OWNER = 0x527306090ABaB3a6e1400e9345BC60C78A8Bef57;
 
 contract MultiSigTest is Test {
     IMultiSig public multisig;
@@ -27,29 +29,17 @@ contract MultiSigTest is Test {
     function setUp() public {
         Fe.compileIngot("multisig");
         address[50] memory owners;
-        owners[0] = 0x627306090abaB3A6e1400e9345bC60c78a8BEf57;
-        multisig = IMultiSig(Fe.deployContract("MultiSig", abi.encode(owners, 1)));
+        owners[0] = FIRST_OWNER;
+        owners[1] = SECOND_OWNER;
+        multisig = IMultiSig(Fe.deployContract("MultiSig", abi.encode(owners, 2)));
     }
 
-    function testExecute() public {
-      bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
-
-      address multisig_address = address(multisig);
-      vm.startPrank(BINANCE_ACCOUNT);
-      IERC20(DAI).transfer(address(multisig), 10000);
-      uint256 initial_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
-      multisig.execute(DAI, 0, data, 68);
-
-      uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
-      assertEq(second_multisig_balance, initial_multisig_balance - 1);
-    }
-
-    function testAdd() public {
+    function testSubmit() public {
       // Send some DAI to the 0x0 address
       bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
-      uint256 tx_id = multisig.add_transaction(DAI, 0, data, 68);
+      uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 68);
       assertEq(tx_id, 0);
-      uint256 second_tx_id = multisig.add_transaction(DAI, 0, data, 68);
+      uint256 second_tx_id = multisig.submit_transaction(DAI, 0, data, 68);
       assertEq(second_tx_id, 1);
     }
 
@@ -62,18 +52,15 @@ contract MultiSigTest is Test {
       uint256 initial_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
 
       vm.stopPrank();
-      vm.startPrank(0x627306090abaB3A6e1400e9345bC60c78a8BEf57);
-      uint256 tx_id = multisig.add_transaction(DAI, 0, data, 68);
+      vm.startPrank(FIRST_OWNER);
+      uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 68);
+
+      vm.stopPrank();
+      vm.startPrank(SECOND_OWNER);
       multisig.confirm_transaction(tx_id);
 
       uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
       assertEq(second_multisig_balance, initial_multisig_balance - 1);
     }
 
-
-    function testTx() public {
-      //bytes memory data = new bytes(1);
-      //multisig.execute(address(0x0), 0, data, 1);
-      //assertEq(multisig.foo(), 5);
-    }
 }
