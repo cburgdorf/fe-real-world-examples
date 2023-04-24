@@ -26,7 +26,9 @@ contract MultiSigTest is Test {
 
     function setUp() public {
         Fe.compileIngot("multisig");
-        multisig = IMultiSig(Fe.deployContract("MultiSig"));
+        address[50] memory owners;
+        owners[0] = 0x627306090abaB3A6e1400e9345bC60c78a8BEf57;
+        multisig = IMultiSig(Fe.deployContract("MultiSig", abi.encode(owners, 1)));
     }
 
     function testExecute() public {
