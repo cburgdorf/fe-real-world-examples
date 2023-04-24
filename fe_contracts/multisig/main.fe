@@ -6,6 +6,13 @@ const TX_MAX_DATA_SIZE: u256 = 128
 
 type TransactionData = Array<u8, { TX_MAX_DATA_SIZE }>
 
+struct Confirmation {
+    #indexed
+    pub owner: address
+    #indexed
+    pub tx_id: u256
+}
+
 struct Transaction {
     pub destination: address 
     pub value: u256 
@@ -74,16 +81,17 @@ contract MultiSig {
   }
 
   // Allows an owner to submit and confirm a transaction.
-  pub fn submit_transaction(mut self, ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
+  pub fn submit_transaction(mut self, mut ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
     let tx_id: u256 = self.add_transaction(destination, value, data, data_length)
     self.confirm_transaction(ctx, tx_id)
     return tx_id
   }
 
   /// Allows an owner to confirm a transaction
-  pub fn confirm_transaction(mut self, ctx: Context, tx_id: u256) {
+  pub fn confirm_transaction(mut self, mut ctx: Context, tx_id: u256) {
     //TODO: add checks
     self.confirmations[tx_id][ctx.msg_sender()] = true
+    ctx.emit(Confirmation(owner: ctx.msg_sender(), tx_id))
     self.execute_transaction(tx_id)
   }
 

@@ -24,6 +24,11 @@ address constant FIRST_OWNER = 0x627306090abaB3A6e1400e9345bC60c78a8BEf57;
 address constant SECOND_OWNER = 0x527306090ABaB3a6e1400e9345BC60C78A8Bef57;
 
 contract MultiSigTest is Test {
+
+    // We have to declare the events that we want add assertions for
+    event Confirmation(address indexed owner, uint indexed tx_id);
+
+
     IMultiSig public multisig;
 
     function setUp() public {
@@ -51,10 +56,14 @@ contract MultiSigTest is Test {
       IERC20(DAI).transfer(address(multisig), 10000);
       uint256 initial_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
 
+      vm.expectEmit(true, true, true, true);
+      emit Confirmation(FIRST_OWNER, 0);
       vm.stopPrank();
       vm.startPrank(FIRST_OWNER);
       uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 68);
 
+      vm.expectEmit(true, true, true, true);
+      emit Confirmation(SECOND_OWNER, 0);
       vm.stopPrank();
       vm.startPrank(SECOND_OWNER);
       multisig.confirm_transaction(tx_id);
@@ -62,5 +71,27 @@ contract MultiSigTest is Test {
       uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
       assertEq(second_multisig_balance, initial_multisig_balance - 1);
     }
+
+    function testCanNotExecuteUnconfirmedTx() public {
+      bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
+
+      address multisig_address = address(multisig);
+      vm.startPrank(BINANCE_ACCOUNT);
+      IERC20(DAI).transfer(address(multisig), 10000);
+      uint256 initial_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
+
+      vm.expectEmit(true, true, true, true);
+      emit Confirmation(FIRST_OWNER, 0);
+
+      vm.stopPrank();
+      vm.startPrank(FIRST_OWNER);
+      uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 68);
+
+      multisig.execute_transaction(tx_id);
+      uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
+      // Balance is still the same
+      assertEq(second_multisig_balance, initial_multisig_balance);
+    }
+
 
 }
