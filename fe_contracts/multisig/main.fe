@@ -39,15 +39,48 @@ contract MultiSig {
   confirmations: Map<u256, Map<address, bool>>
   required_confirmations: u8
   owners: Array<address, { MAX_OWNER_COUNT }>
+  is_owner: Map<address, bool>
 
   pub fn __init__(mut self, owners: Array<address, { MAX_OWNER_COUNT }>, required_confirmations: u8) {
-    // Hardcoding a single owner for now
+    for owner in owners {
+      // TODO: Look into this
+      //if owner == 0 or self.is_owner[owner]{
+      //  revert
+      //}
+      self.is_owner[owner] = true
+    }
     self.owners = owners
     self.required_confirmations = required_confirmations
   }
 
-  fn validate_not_executed(self, tx_id: u256) {
+  // Internal validation methods
+
+  fn validate_not_executed(self, _ tx_id: u256) {
     if self.transactions[tx_id].executed {
+      revert
+    }
+  }
+
+  fn validate_owner_exists(self, _ owner: address) {
+    if not self.is_owner[owner] {
+      revert
+    }
+  }
+
+  fn validate_confirmed(self, _ tx_id: u256, _ owner: address) {
+    if not self.confirmations[tx_id][owner] {
+      revert
+    }
+  }
+
+  fn validate_not_confirmed(self, _ tx_id: u256, _ owner: address) {
+    if self.confirmations[tx_id][owner] {
+      revert
+    }
+  }
+
+  fn validate_tx_exists(self, _ tx_id: u256) {
+    if self.transactions[tx_id].destination == 0 {
       revert
     }
   }
@@ -89,16 +122,21 @@ contract MultiSig {
 
   /// Allows an owner to confirm a transaction
   pub fn confirm_transaction(mut self, mut ctx: Context, tx_id: u256) {
-    //TODO: add checks
+    self.validate_owner_exists(ctx.msg_sender())
+    self.validate_tx_exists(tx_id)
+    self.validate_not_confirmed(tx_id, ctx.msg_sender())
+
     self.confirmations[tx_id][ctx.msg_sender()] = true
     ctx.emit(Confirmation(owner: ctx.msg_sender(), tx_id))
-    self.execute_transaction(tx_id)
+    self.execute_transaction(ctx, tx_id)
   }
 
 
-  // TODO: Add validations
-  pub fn execute_transaction(mut self, tx_id: u256) {
-    self.validate_not_executed(tx_id);
+  pub fn execute_transaction(mut self, ctx: Context, tx_id: u256) {
+    self.validate_not_executed(tx_id)
+    self.validate_owner_exists(ctx.msg_sender())
+    self.validate_confirmed(tx_id, ctx.msg_sender())
+
     if self.is_confirmed(tx_id) {
       let mut tx: Transaction = self.transactions[tx_id].to_mem()
       self.transactions[tx_id].executed = true

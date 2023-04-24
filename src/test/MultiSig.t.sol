@@ -42,10 +42,18 @@ contract MultiSigTest is Test {
     function testSubmit() public {
       // Send some DAI to the 0x0 address
       bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
+      vm.startPrank(FIRST_OWNER);
       uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 68);
       assertEq(tx_id, 0);
       uint256 second_tx_id = multisig.submit_transaction(DAI, 0, data, 68);
       assertEq(second_tx_id, 1);
+    }
+
+    function testStrangersCannotSubmit() public {
+      // Send some DAI to the 0x0 address
+      bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
+      vm.expectRevert();
+      multisig.submit_transaction(DAI, 0, data, 68);
     }
 
     function testExecuteTx() public {
