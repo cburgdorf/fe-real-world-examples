@@ -6,6 +6,37 @@ const TX_MAX_DATA_SIZE: u256 = 128
 
 type TransactionData = Array<u8, { TX_MAX_DATA_SIZE }>
 
+trait AddressArrayExtensions{
+  fn length(self) -> u256;
+  fn push(self, _ item: address);
+}
+
+// This really sucks but Fe lacks these methods natively
+// and wrapping an address array in a struct comes with some weird bugs
+impl AddressArrayExtensions for Array<address, { MAX_OWNER_COUNT }> {
+  fn length(self) -> u256 {
+    let mut count: u256 = 0
+    for item in self {
+      if item != 0 {
+        count += 1
+      }
+    }
+    return count
+  }
+
+  fn push(mut self, _ val: address) {
+    let mut index: u256 = 0
+    for item in self {
+      if item == 0 {
+        self[index] = val
+        return
+      }
+      index += 1
+    }
+    revert
+  }
+}
+
 struct Confirmation {
     #indexed
     pub owner: address
@@ -85,6 +116,12 @@ contract MultiSig {
     }
   }
 
+  fn validate_only_wallet(self, ctx: Context) {
+    if ctx.msg_sender() != ctx.self_address() {
+      revert
+    }
+  }
+
   /// Returns the confirmation status of a transaction.
   pub fn is_confirmed(self, tx_id: u256) -> bool {
     let mut count: u8 = 0
@@ -143,5 +180,18 @@ contract MultiSig {
       // TODO: Handle failure
       RawCallHelper::call(tx.destination, tx.value, tx)
     }
+  }
+
+  pub fn add_owner(mut self, ctx: Context, owner: address) {
+    self.validate_only_wallet(ctx)
+    // TODO: add all other checks
+    self.is_owner[owner] = true
+    let mut owners: Array<address, { MAX_OWNER_COUNT }> = self.owners.to_mem()
+    owners.push(owner)
+    self.owners = owners
+  }
+
+  pub fn get_owners(self) -> Array<address, { MAX_OWNER_COUNT }> {
+    return self.owners.to_mem()
   }
 }

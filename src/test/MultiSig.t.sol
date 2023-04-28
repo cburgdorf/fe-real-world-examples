@@ -22,6 +22,7 @@ function pad_to_length(bytes memory data, uint256 length) pure returns (bytes me
 uint16 constant DATA_LENGTH = 128;
 address constant FIRST_OWNER = 0x627306090abaB3A6e1400e9345bC60c78a8BEf57;
 address constant SECOND_OWNER = 0x527306090ABaB3a6e1400e9345BC60C78A8Bef57;
+address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
 contract MultiSigTest is Test {
 
@@ -37,6 +38,25 @@ contract MultiSigTest is Test {
         owners[0] = FIRST_OWNER;
         owners[1] = SECOND_OWNER;
         multisig = IMultiSig(Fe.deployContract("MultiSig", abi.encode(owners, 2)));
+    }
+
+    function testCannotCallAddOwner() public {
+      vm.expectRevert();
+      multisig.add_owner(BINANCE_ACCOUNT);
+    }
+
+    // TODO: Encode addOwner as a multisig tx
+    function testAddOwner() public {
+      address[50] memory existing_owners = multisig.get_owners();
+      assertEq(existing_owners[0], FIRST_OWNER);
+      assertEq(existing_owners[1], SECOND_OWNER);
+      assertEq(existing_owners[2], ZERO_ADDRESS);
+      multisig.add_owner(BINANCE_ACCOUNT);
+      address[50] memory new_owners = multisig.get_owners();
+      assertEq(new_owners[0], FIRST_OWNER);
+      assertEq(new_owners[1], SECOND_OWNER);
+      assertEq(new_owners[2], BINANCE_ACCOUNT);
+      
     }
 
     function testSubmit() public {
