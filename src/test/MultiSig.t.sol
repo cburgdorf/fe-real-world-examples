@@ -29,7 +29,7 @@ contract MultiSigTest is Test {
     // We have to declare the events that we want add assertions for
     event Confirmation(address indexed owner, uint indexed tx_id);
     event OwnerAddition(address indexed owner);
-
+    event OwnerRemoval(address indexed owner);
 
     IMultiSig public multisig;
 
@@ -47,7 +47,7 @@ contract MultiSigTest is Test {
     }
 
 
-    function testAddOwner() public {
+    function testAddAndRemoveOwner() public {
       bytes memory data = pad_to_length(hex"4a75e74100000000000000000000000028c6c06298d514db089934071355e5743bf21d60", DATA_LENGTH);
       vm.startPrank(FIRST_OWNER);
       address[50] memory existing_owners = multisig.get_owners();
@@ -68,6 +68,19 @@ contract MultiSigTest is Test {
       assertEq(new_owners[0], FIRST_OWNER);
       assertEq(new_owners[1], SECOND_OWNER);
       assertEq(new_owners[2], BINANCE_ACCOUNT);
+
+      bytes memory data_removal = pad_to_length(hex"f6b9571a00000000000000000000000028c6c06298d514db089934071355e5743bf21d60", DATA_LENGTH);
+      uint256 tx2_id = multisig.submit_transaction(address(multisig), 0, data_removal, 36);
+      vm.stopPrank();
+
+      vm.startPrank(FIRST_OWNER);
+      vm.expectEmit(true, true, true, true);
+      emit OwnerRemoval(BINANCE_ACCOUNT);
+
+      multisig.confirm_transaction(tx2_id);
+      assertEq(existing_owners[0], FIRST_OWNER);
+      assertEq(existing_owners[1], SECOND_OWNER);
+      assertEq(existing_owners[2], ZERO_ADDRESS);
     }
 
     function testSubmit() public {

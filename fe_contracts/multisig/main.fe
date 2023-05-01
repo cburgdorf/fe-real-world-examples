@@ -19,6 +19,11 @@ struct OwnerAddition {
     pub owner: address
 }
 
+struct OwnerRemoval {
+    #indexed
+    pub owner: address
+}
+
 struct Transaction {
     pub destination: address 
     pub value: u256 
@@ -185,14 +190,19 @@ contract MultiSig {
     self.is_owner[owner] = true
     let mut tmp: AddressArray = self.owners.to_mem()
     tmp.push(owner)
-
     self.owners = tmp
     ctx.emit(OwnerAddition(owner))
   }
 
   pub fn remove_owner(mut self, mut ctx: Context, owner: address) {
+    self.validate_only_wallet(ctx)
+    self.validate_owner_exists(owner)
     self.is_owner[owner] = false
-
+    let mut tmp: AddressArray = self.owners.to_mem()
+    tmp.remove(owner)
+    self.owners = tmp
+    ctx.emit(OwnerRemoval(owner))
+    // TODO: Check and alter requirement
   }
 
   pub fn get_owners(self) -> Array<address, { MAX_OWNER_COUNT }> {
