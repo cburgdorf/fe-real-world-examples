@@ -1,41 +1,11 @@
 use std::evm::call_data_load
 use raw_call::{RawCallHelper, MemoryEncoding}
+use address_array::{AddressArray}
 
 const MAX_OWNER_COUNT: u8 = 50
 const TX_MAX_DATA_SIZE: u256 = 128
 
 type TransactionData = Array<u8, { TX_MAX_DATA_SIZE }>
-
-trait AddressArrayExtensions{
-  fn length(self) -> u256;
-  fn push(self, _ item: address);
-}
-
-// This really sucks but Fe lacks these methods natively
-// and wrapping an address array in a struct comes with some weird bugs
-impl AddressArrayExtensions for Array<address, { MAX_OWNER_COUNT }> {
-  fn length(self) -> u256 {
-    let mut count: u256 = 0
-    for item in self {
-      if item != 0 {
-        count += 1
-      }
-    }
-    return count
-  }
-
-  fn push(mut self, _ val: address) {
-    let mut index: u256 = 0
-    for item in self {
-      if item == 0 {
-        self[index] = val
-        return
-      }
-      index += 1
-    }
-    revert
-  }
-}
 
 struct Confirmation {
     #indexed
@@ -74,18 +44,19 @@ contract MultiSig {
   transactions: Map<u256, Transaction>
   confirmations: Map<u256, Map<address, bool>>
   required_confirmations: u8
-  owners: Array<address, { MAX_OWNER_COUNT }>
+  owners: AddressArray
   is_owner: Map<address, bool>
 
   pub fn __init__(mut self, owners: Array<address, { MAX_OWNER_COUNT }>, required_confirmations: u8) {
+    let mut tmp: AddressArray = AddressArray::new()
     for owner in owners {
       // TODO: Look into this
-      //if owner == 0 or self.is_owner[owner]{
-      //  revert
-      //}
-      self.is_owner[owner] = true
+      if owner != 0 and not self.is_owner[owner]{
+        tmp.push(owner)
+        self.is_owner[owner] = true
+      }
     }
-    self.owners = owners
+    self.owners = tmp
     self.required_confirmations = required_confirmations
   }
 
@@ -148,7 +119,7 @@ contract MultiSig {
   /// Returns the confirmation status of a transaction.
   pub fn is_confirmed(self, tx_id: u256) -> bool {
     let mut count: u8 = 0
-    for owner in self.owners.to_mem() {
+    for owner in self.owners.to_mem().data() {
       if self.confirmations[tx_id][owner] {
         count += 1
       }
@@ -212,13 +183,19 @@ contract MultiSig {
     self.validate_valid_requirement(self.owners.to_mem().length() + 1, self.required_confirmations)
 
     self.is_owner[owner] = true
-    let mut owners: Array<address, { MAX_OWNER_COUNT }> = self.owners.to_mem()
-    owners.push(owner)
-    self.owners = owners
+    let mut tmp: AddressArray = self.owners.to_mem()
+    tmp.push(owner)
+
+    self.owners = tmp
     ctx.emit(OwnerAddition(owner))
   }
 
+  pub fn remove_owner(mut self, mut ctx: Context, owner: address) {
+    self.is_owner[owner] = false
+
+  }
+
   pub fn get_owners(self) -> Array<address, { MAX_OWNER_COUNT }> {
-    return self.owners.to_mem()
+    return self.owners.to_mem().data()
   }
 }

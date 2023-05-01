@@ -1,0 +1,50 @@
+const ZERO_ADDRESS: address = 0x0000000000000000000000000000000000000000
+const MAX_CAPACITY: u256 = 50
+
+pub struct AddressArray {
+    array: Array<address, { MAX_CAPACITY }>
+    length: u256
+
+    pub fn new() -> AddressArray {
+        return AddressArray (
+            array: [ZERO_ADDRESS; MAX_CAPACITY],
+            length: 0
+        )
+    }
+
+    pub fn push(mut self, _ value: address) {
+        if self.length == MAX_CAPACITY or value == ZERO_ADDRESS{
+            revert
+        }
+        self.array[self.length] = value
+        self.length += 1
+    }
+
+    pub fn remove_at(mut self, _ index: u256) {
+        self.array[index] = ZERO_ADDRESS
+        self.length -= 1
+    }
+
+    pub fn remove(mut self, _ value: address) {
+        let mut index: u256 = 0
+        while index < self.length {
+            if self.array[index] == value {
+                self.remove_at(index)
+                return
+            }
+            index += 1
+        }
+    }
+
+    pub fn length(self) -> u256 {
+        return self.length
+    }
+
+    pub fn get(self, index: u256) -> address {
+        return self.array[index]
+    }
+
+    pub fn data(self) -> Array<address, { MAX_CAPACITY }> {
+        return self.array
+    }
+}

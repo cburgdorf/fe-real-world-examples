@@ -58,7 +58,6 @@ contract MultiSigTest is Test {
       uint256 tx_id = multisig.submit_transaction(address(multisig), 0, data, 36);
       vm.stopPrank();
 
-
       vm.expectEmit(true, true, true, true);
       emit OwnerAddition(BINANCE_ACCOUNT);
 
