@@ -98,6 +98,12 @@ contract MultiSig {
     }
   }
 
+  fn validate_owner_does_not_exist(self, _ owner: address) {
+    if self.is_owner[owner] {
+      revert
+    }
+  }
+
   fn validate_confirmed(self, _ tx_id: u256, _ owner: address) {
     if not self.confirmations[tx_id][owner] {
       revert
@@ -118,6 +124,18 @@ contract MultiSig {
 
   fn validate_only_wallet(self, ctx: Context) {
     if ctx.msg_sender() != ctx.self_address() {
+      revert
+    }
+  }
+
+  fn validate_not_null(self, _ addr: address) {
+    if addr == 0 {
+      revert
+    }
+  }
+
+  fn validate_valid_requirement(self, _ owner_count: u256, _ required: u256) {
+    if owner_count > MAX_OWNER_COUNT or required > owner_count or required == 0 or owner_count == 0 {
       revert
     }
   }
@@ -182,9 +200,12 @@ contract MultiSig {
     }
   }
 
-  pub fn add_owner(mut self, ctx: Context, owner: address) {
+  pub fn add_owner(mut self, mut ctx: Context, owner: address) {
     self.validate_only_wallet(ctx)
-    // TODO: add all other checks
+    self.validate_owner_does_not_exist(owner)
+    self.validate_not_null(owner)
+    self.validate_valid_requirement(self.owners.to_mem().length() + 1, self.required_confirmations)
+
     self.is_owner[owner] = true
     let mut owners: Array<address, { MAX_OWNER_COUNT }> = self.owners.to_mem()
     owners.push(owner)

@@ -45,18 +45,25 @@ contract MultiSigTest is Test {
       multisig.add_owner(BINANCE_ACCOUNT);
     }
 
-    // TODO: Encode addOwner as a multisig tx
+
     function testAddOwner() public {
+      bytes memory data = pad_to_length(hex"4a75e74100000000000000000000000028c6c06298d514db089934071355e5743bf21d60", DATA_LENGTH);
+      vm.startPrank(FIRST_OWNER);
       address[50] memory existing_owners = multisig.get_owners();
       assertEq(existing_owners[0], FIRST_OWNER);
       assertEq(existing_owners[1], SECOND_OWNER);
       assertEq(existing_owners[2], ZERO_ADDRESS);
-      multisig.add_owner(BINANCE_ACCOUNT);
+
+      uint256 tx_id = multisig.submit_transaction(address(multisig), 0, data, 36);
+      vm.stopPrank();
+
+      vm.startPrank(SECOND_OWNER);
+      multisig.confirm_transaction(tx_id);
+
       address[50] memory new_owners = multisig.get_owners();
       assertEq(new_owners[0], FIRST_OWNER);
       assertEq(new_owners[1], SECOND_OWNER);
       assertEq(new_owners[2], BINANCE_ACCOUNT);
-      
     }
 
     function testSubmit() public {
