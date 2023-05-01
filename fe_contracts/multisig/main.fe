@@ -44,6 +44,11 @@ struct Confirmation {
     pub tx_id: u256
 }
 
+struct OwnerAddition {
+    #indexed
+    pub owner: address
+}
+
 struct Transaction {
     pub destination: address 
     pub value: u256 
@@ -210,6 +215,7 @@ contract MultiSig {
     let mut owners: Array<address, { MAX_OWNER_COUNT }> = self.owners.to_mem()
     owners.push(owner)
     self.owners = owners
+    ctx.emit(OwnerAddition(owner))
   }
 
   pub fn get_owners(self) -> Array<address, { MAX_OWNER_COUNT }> {

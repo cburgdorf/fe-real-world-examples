@@ -28,6 +28,7 @@ contract MultiSigTest is Test {
 
     // We have to declare the events that we want add assertions for
     event Confirmation(address indexed owner, uint indexed tx_id);
+    event OwnerAddition(address indexed owner);
 
 
     IMultiSig public multisig;
@@ -56,6 +57,10 @@ contract MultiSigTest is Test {
 
       uint256 tx_id = multisig.submit_transaction(address(multisig), 0, data, 36);
       vm.stopPrank();
+
+
+      vm.expectEmit(true, true, true, true);
+      emit OwnerAddition(BINANCE_ACCOUNT);
 
       vm.startPrank(SECOND_OWNER);
       multisig.confirm_transaction(tx_id);
