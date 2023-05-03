@@ -214,6 +214,21 @@ contract MultiSig {
     ctx.emit(OwnerRemoval(owner))
   }
 
+  // TODO: Add test
+  pub fn replace_owner(mut self, mut ctx: Context, owner: address, new_owner: address) {
+    self.validate_only_wallet(ctx)
+    self.validate_owner_exists(owner)
+    self.validate_owner_does_not_exist(new_owner)
+    let mut tmp: AddressArray = self.owners.to_mem()
+    tmp.remove(owner)
+    tmp.push(new_owner)
+    self.owners = tmp
+    self.is_owner[owner] = false
+    self.is_owner[new_owner] = true
+    ctx.emit(OwnerRemoval(owner))
+    ctx.emit(OwnerAddition(owner: new_owner))
+  }
+
   pub fn change_requirement(mut self, mut ctx: Context, _ required: u256) {
     self.required_confirmations = required
     ctx.emit(RequirementChange(required))
