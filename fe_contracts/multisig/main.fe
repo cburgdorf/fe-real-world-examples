@@ -24,6 +24,11 @@ struct OwnerRemoval {
     pub owner: address
 }
 
+struct RequirementChange {
+    #indexed
+    pub required: u256
+}
+
 struct Transaction {
     pub destination: address 
     pub value: u256 
@@ -48,7 +53,7 @@ contract MultiSig {
   tx_count: u256
   transactions: Map<u256, Transaction>
   confirmations: Map<u256, Map<address, bool>>
-  required_confirmations: u8
+  required_confirmations: u256
   owners: AddressArray
   is_owner: Map<address, bool>
 
@@ -123,7 +128,7 @@ contract MultiSig {
 
   /// Returns the confirmation status of a transaction.
   pub fn is_confirmed(self, tx_id: u256) -> bool {
-    let mut count: u8 = 0
+    let mut count: u256 = 0
     for owner in self.owners.to_mem().data() {
       if self.confirmations[tx_id][owner] {
         count += 1
@@ -200,9 +205,18 @@ contract MultiSig {
     self.is_owner[owner] = false
     let mut tmp: AddressArray = self.owners.to_mem()
     tmp.remove(owner)
+
+    if self.required_confirmations > tmp.length() {
+      self.change_requirement(ctx, tmp.length())
+    }
+
     self.owners = tmp
     ctx.emit(OwnerRemoval(owner))
-    // TODO: Check and alter requirement
+  }
+
+  pub fn change_requirement(mut self, mut ctx: Context, _ required: u256) {
+    self.required_confirmations = required
+    ctx.emit(RequirementChange(required))
   }
 
   pub fn get_owners(self) -> Array<address, { MAX_OWNER_COUNT }> {
