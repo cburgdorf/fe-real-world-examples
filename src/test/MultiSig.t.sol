@@ -83,6 +83,30 @@ contract MultiSigTest is Test {
       assertEq(existing_owners[2], ZERO_ADDRESS);
     }
 
+    function testReplaceOwner() public {
+      bytes memory data = pad_to_length(hex"f097d1de000000000000000000000000527306090abab3a6e1400e9345bc60c78a8bef5700000000000000000000000028c6c06298d514db089934071355e5743bf21d60", DATA_LENGTH);
+      vm.startPrank(FIRST_OWNER);
+      address[50] memory existing_owners = multisig.get_owners();
+      assertEq(existing_owners[0], FIRST_OWNER);
+      assertEq(existing_owners[1], SECOND_OWNER);
+      assertEq(existing_owners[2], ZERO_ADDRESS);
+
+      uint256 tx_id = multisig.submit_transaction(address(multisig), 0, data, 68);
+      vm.stopPrank();
+
+      vm.expectEmit(true, true, true, true);
+      emit OwnerRemoval(SECOND_OWNER);
+      emit OwnerAddition(BINANCE_ACCOUNT);
+
+      vm.startPrank(SECOND_OWNER);
+      multisig.confirm_transaction(tx_id);
+
+      address[50] memory new_owners = multisig.get_owners();
+      assertEq(new_owners[0], FIRST_OWNER);
+      assertEq(new_owners[1], BINANCE_ACCOUNT);
+      assertEq(new_owners[2], ZERO_ADDRESS);
+    }
+
     function testSubmit() public {
       // Send some DAI to the 0x0 address
       bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
