@@ -28,6 +28,7 @@ contract MultiSigTest is Test {
 
     // We have to declare the events that we want add assertions for
     event Confirmation(address indexed owner, uint indexed tx_id);
+    event Submission(uint indexed tx_id);
     event OwnerAddition(address indexed owner);
     event OwnerRemoval(address indexed owner);
 
@@ -111,9 +112,13 @@ contract MultiSigTest is Test {
       // Send some DAI to the 0x0 address
       bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
       vm.startPrank(FIRST_OWNER);
+      vm.expectEmit(true, true, true, true);
       uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 68);
+      emit Submission(tx_id);
       assertEq(tx_id, 0);
+      vm.expectEmit(true, true, true, true);
       uint256 second_tx_id = multisig.submit_transaction(DAI, 0, data, 68);
+      emit Submission(second_tx_id);
       assertEq(second_tx_id, 1);
     }
 

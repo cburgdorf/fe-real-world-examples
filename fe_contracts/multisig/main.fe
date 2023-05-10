@@ -14,6 +14,11 @@ struct Confirmation {
     pub tx_id: u256
 }
 
+struct Submission {
+  #indexed
+  pub tx_id: u256
+}
+
 struct OwnerAddition {
     #indexed
     pub owner: address
@@ -141,7 +146,8 @@ contract MultiSig {
   }
 
   // TODO: Add checks
-  fn add_transaction(mut self, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
+  fn add_transaction(mut self, mut ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
+    self.validate_not_null(destination)
     let tx_id: u256 = self.tx_count
     self.transactions[tx_id] = Transaction (
       destination,
@@ -151,12 +157,13 @@ contract MultiSig {
       executed: false
     )
     self.tx_count += 1
+    ctx.emit(Submission(tx_id))
     return tx_id
   }
 
   // Allows an owner to submit and confirm a transaction.
   pub fn submit_transaction(mut self, mut ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
-    let tx_id: u256 = self.add_transaction(destination, value, data, data_length)
+    let tx_id: u256 = self.add_transaction(ctx, destination, value, data, data_length)
     self.confirm_transaction(ctx, tx_id)
     return tx_id
   }
@@ -214,7 +221,6 @@ contract MultiSig {
     ctx.emit(OwnerRemoval(owner))
   }
 
-  // TODO: Add test
   pub fn replace_owner(mut self, mut ctx: Context, owner: address, new_owner: address) {
     self.validate_only_wallet(ctx)
     self.validate_owner_exists(owner)
