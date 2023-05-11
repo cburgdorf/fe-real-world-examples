@@ -143,11 +143,19 @@ contract MultiSigTest is Test {
       vm.startPrank(FIRST_OWNER);
       uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 68);
 
+      address[50] memory confirmations_1 = multisig.get_confirmations(tx_id);
+      assertEq(confirmations_1[0], FIRST_OWNER);
+      assertEq(confirmations_1[1], ZERO_ADDRESS);
+
       vm.expectEmit(true, true, true, true);
       emit Confirmation(SECOND_OWNER, 0);
       vm.stopPrank();
       vm.startPrank(SECOND_OWNER);
       multisig.confirm_transaction(tx_id);
+      address[50] memory confirmations_2 = multisig.get_confirmations(tx_id);
+      assertEq(confirmations_1[0], FIRST_OWNER);
+      assertEq(confirmations_1[1], SECOND_OWNER);
+      assertEq(confirmations_1[2], ZERO_ADDRESS);
 
       uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
       assertEq(second_multisig_balance, initial_multisig_balance - 1);

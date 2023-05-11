@@ -145,7 +145,6 @@ contract MultiSig {
     return false
   }
 
-  // TODO: Add checks
   fn add_transaction(mut self, mut ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
     self.validate_not_null(destination)
     let tx_id: u256 = self.tx_count
@@ -243,4 +242,18 @@ contract MultiSig {
   pub fn get_owners(self) -> Array<address, { MAX_OWNER_COUNT }> {
     return self.owners.to_mem().data()
   }
+
+  // Returns a fixed size array containing the addresses that have confirmed the given tx_id
+  pub fn get_confirmations(self, tx_id: u256) -> Array<address, { MAX_OWNER_COUNT }> {
+    let mut confirmations: Array<address, { MAX_OWNER_COUNT }> = [address(0); MAX_OWNER_COUNT]
+    let mut i_match: u256 = 0
+    for owner in self.owners.to_mem().data() {
+      if self.confirmations[tx_id][owner] {
+        confirmations[i_match] = owner
+        i_match += 1
+      }
+    }
+    return confirmations
+  }
+
 }
