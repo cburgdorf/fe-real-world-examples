@@ -14,6 +14,13 @@ struct Confirmation {
     pub tx_id: u256
 }
 
+struct Revocation {
+    #indexed
+    pub owner: address
+    #indexed
+    pub tx_id: u256
+}
+
 struct Submission {
   #indexed
   pub tx_id: u256
@@ -178,6 +185,14 @@ contract MultiSig {
     self.execute_transaction(ctx, tx_id)
   }
 
+  pub fn revoke_transaction(mut self, mut ctx: Context, tx_id: u256) {
+    self.validate_owner_exists(ctx.msg_sender())
+    self.validate_tx_exists(tx_id)
+    self.validate_confirmed(tx_id, ctx.msg_sender())
+
+    self.confirmations[tx_id][ctx.msg_sender()] = false
+    ctx.emit(Revocation(owner: ctx.msg_sender(), tx_id))
+  }
 
   pub fn execute_transaction(mut self, ctx: Context, tx_id: u256) {
     self.validate_not_executed(tx_id)

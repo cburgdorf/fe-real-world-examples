@@ -28,6 +28,7 @@ contract MultiSigTest is Test {
 
     // We have to declare the events that we want add assertions for
     event Confirmation(address indexed owner, uint indexed tx_id);
+    event Revocation(address indexed owner, uint indexed tx_id);
     event Submission(uint indexed tx_id);
     event OwnerAddition(address indexed owner);
     event OwnerRemoval(address indexed owner);
@@ -122,6 +123,20 @@ contract MultiSigTest is Test {
       assertEq(second_tx_id, 1);
     }
 
+    function testRevoke() public {
+      // Send some DAI to the 0x0 address
+      bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
+      vm.startPrank(FIRST_OWNER);
+      uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 68);
+      address[50] memory confirmations_1 = multisig.get_confirmations(tx_id);
+      assertEq(confirmations_1[0], FIRST_OWNER);
+      vm.expectEmit(true, true, true, true);
+      multisig.revoke_transaction(tx_id);
+      emit Revocation(FIRST_OWNER, tx_id);
+      address[50] memory confirmations_2 = multisig.get_confirmations(tx_id);
+      assertEq(confirmations_2[0], ZERO_ADDRESS);
+    }
+
     function testStrangersCannotSubmit() public {
       // Send some DAI to the 0x0 address
       bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
@@ -153,9 +168,9 @@ contract MultiSigTest is Test {
       vm.startPrank(SECOND_OWNER);
       multisig.confirm_transaction(tx_id);
       address[50] memory confirmations_2 = multisig.get_confirmations(tx_id);
-      assertEq(confirmations_1[0], FIRST_OWNER);
-      assertEq(confirmations_1[1], SECOND_OWNER);
-      assertEq(confirmations_1[2], ZERO_ADDRESS);
+      assertEq(confirmations_2[0], FIRST_OWNER);
+      assertEq(confirmations_2[1], SECOND_OWNER);
+      assertEq(confirmations_2[2], ZERO_ADDRESS);
 
       uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
       assertEq(second_multisig_balance, initial_multisig_balance - 1);
