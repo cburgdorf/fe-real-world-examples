@@ -131,7 +131,7 @@ contract MultiSigTest is Test {
       address[50] memory confirmations_1 = multisig.get_confirmations(tx_id);
       assertEq(confirmations_1[0], FIRST_OWNER);
       vm.expectEmit(true, true, true, true);
-      multisig.revoke_transaction(tx_id);
+      multisig.revoke_confirmation(tx_id);
       emit Revocation(FIRST_OWNER, tx_id);
       address[50] memory confirmations_2 = multisig.get_confirmations(tx_id);
       assertEq(confirmations_2[0], ZERO_ADDRESS);

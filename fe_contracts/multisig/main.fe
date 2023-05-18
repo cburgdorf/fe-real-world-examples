@@ -2,11 +2,15 @@ use std::evm::call_data_load
 use raw_call::{RawCallHelper, MemoryEncoding}
 use address_array::{AddressArray}
 
+// The following implementation is based on the following solidity implementation
+// https://github.com/OpenZeppelin/gnosis-multisig/blob/master/contracts/MultiSigWallet.sol
+
 const MAX_OWNER_COUNT: u8 = 50
 const TX_MAX_DATA_SIZE: u256 = 128
 
 type TransactionData = Array<u8, { TX_MAX_DATA_SIZE }>
 
+// Events
 struct Confirmation {
     #indexed
     pub owner: address
@@ -69,6 +73,7 @@ contract MultiSig {
   owners: AddressArray
   is_owner: Map<address, bool>
 
+  // Contract constructor sets initial owners and required number of confirmations.
   pub fn __init__(mut self, owners: Array<address, { MAX_OWNER_COUNT }>, required_confirmations: u8) {
     let mut tmp: AddressArray = AddressArray::new()
     for owner in owners {
@@ -80,6 +85,151 @@ contract MultiSig {
     }
     self.owners = tmp
     self.required_confirmations = required_confirmations
+  }
+
+  /// Allows to add a new owner. Transaction has to be sent by wallet.
+  pub fn add_owner(mut self, mut ctx: Context, owner: address) {
+    self.validate_only_wallet(ctx)
+    self.validate_owner_does_not_exist(owner)
+    self.validate_not_null(owner)
+    self.validate_valid_requirement(self.owners.to_mem().length() + 1, self.required_confirmations)
+
+    self.is_owner[owner] = true
+    let mut tmp: AddressArray = self.owners.to_mem()
+    tmp.push(owner)
+    self.owners = tmp
+    ctx.emit(OwnerAddition(owner))
+  }
+
+  /// Allows to remove an owner. Transaction has to be sent by wallet.
+  pub fn remove_owner(mut self, mut ctx: Context, owner: address) {
+    self.validate_only_wallet(ctx)
+    self.validate_owner_exists(owner)
+    self.is_owner[owner] = false
+    let mut tmp: AddressArray = self.owners.to_mem()
+    tmp.remove(owner)
+
+    if self.required_confirmations > tmp.length() {
+      self.change_requirement(ctx, tmp.length())
+    }
+
+    self.owners = tmp
+    ctx.emit(OwnerRemoval(owner))
+  }
+
+  /// Allows to replace an owner with a new owner. Transaction has to be sent by wallet.
+  pub fn replace_owner(mut self, mut ctx: Context, owner: address, new_owner: address) {
+    self.validate_only_wallet(ctx)
+    self.validate_owner_exists(owner)
+    self.validate_owner_does_not_exist(new_owner)
+    let mut tmp: AddressArray = self.owners.to_mem()
+    tmp.remove(owner)
+    tmp.push(new_owner)
+    self.owners = tmp
+    self.is_owner[owner] = false
+    self.is_owner[new_owner] = true
+    ctx.emit(OwnerRemoval(owner))
+    ctx.emit(OwnerAddition(owner: new_owner))
+  }
+
+  /// Allows to change the number of required confirmations. Transaction has to be sent by wallet.
+  pub fn change_requirement(mut self, mut ctx: Context, _ required: u256) {
+    self.required_confirmations = required
+    ctx.emit(RequirementChange(required))
+  }
+
+  /// Allows an owner to submit and confirm a transaction.
+  pub fn submit_transaction(mut self, mut ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
+    let tx_id: u256 = self.add_transaction(ctx, destination, value, data, data_length)
+    self.confirm_transaction(ctx, tx_id)
+    return tx_id
+  }
+
+  /// Allows an owner to confirm a transaction
+  pub fn confirm_transaction(mut self, mut ctx: Context, tx_id: u256) {
+    self.validate_owner_exists(ctx.msg_sender())
+    self.validate_tx_exists(tx_id)
+    self.validate_not_confirmed(tx_id, ctx.msg_sender())
+
+    self.confirmations[tx_id][ctx.msg_sender()] = true
+    ctx.emit(Confirmation(owner: ctx.msg_sender(), tx_id))
+    self.execute_transaction(ctx, tx_id)
+  }
+
+  /// Allows an owner to revoke a confirmation for a transaction.
+  pub fn revoke_confirmation(mut self, mut ctx: Context, tx_id: u256) {
+    self.validate_owner_exists(ctx.msg_sender())
+    self.validate_tx_exists(tx_id)
+    self.validate_confirmed(tx_id, ctx.msg_sender())
+
+    self.confirmations[tx_id][ctx.msg_sender()] = false
+    ctx.emit(Revocation(owner: ctx.msg_sender(), tx_id))
+  }
+
+  /// Allows anyone to execute a confirmed transaction.
+  pub fn execute_transaction(mut self, ctx: Context, tx_id: u256) {
+    self.validate_not_executed(tx_id)
+    self.validate_owner_exists(ctx.msg_sender())
+    self.validate_confirmed(tx_id, ctx.msg_sender())
+
+    if self.is_confirmed(tx_id) {
+      let mut tx: Transaction = self.transactions[tx_id].to_mem()
+      self.transactions[tx_id].executed = true
+      // TODO: Handle failure
+      RawCallHelper::call(tx.destination, tx.value, tx)
+    }
+  }
+
+  /// Returns the confirmation status of a transaction.
+  pub fn is_confirmed(self, tx_id: u256) -> bool {
+    let mut count: u256 = 0
+    for owner in self.owners.to_mem().data() {
+      if self.confirmations[tx_id][owner] {
+        count += 1
+      }
+      if count == self.required_confirmations {
+        return true
+      }
+    }
+    return false
+  }
+
+  // Public readonly functions
+
+  /// Returns list of owners
+  pub fn get_owners(self) -> Array<address, { MAX_OWNER_COUNT }> {
+    return self.owners.to_mem().data()
+  }
+
+  /// Returns a fixed size array containing the addresses that have confirmed the given tx_id
+  pub fn get_confirmations(self, tx_id: u256) -> Array<address, { MAX_OWNER_COUNT }> {
+    let mut confirmations: Array<address, { MAX_OWNER_COUNT }> = [address(0); MAX_OWNER_COUNT]
+    let mut i_match: u256 = 0
+    for owner in self.owners.to_mem().data() {
+      if self.confirmations[tx_id][owner] {
+        confirmations[i_match] = owner
+        i_match += 1
+      }
+    }
+    return confirmations
+  }
+
+
+  // Internal functions
+
+  fn add_transaction(mut self, mut ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
+    self.validate_not_null(destination)
+    let tx_id: u256 = self.tx_count
+    self.transactions[tx_id] = Transaction (
+      destination,
+      value,
+      data,
+      data_length,
+      executed: false
+    )
+    self.tx_count += 1
+    ctx.emit(Submission(tx_id))
+    return tx_id
   }
 
   // Internal validation methods
@@ -136,139 +286,6 @@ contract MultiSig {
     if owner_count > MAX_OWNER_COUNT or required > owner_count or required == 0 or owner_count == 0 {
       revert
     }
-  }
-
-  /// Returns the confirmation status of a transaction.
-  pub fn is_confirmed(self, tx_id: u256) -> bool {
-    let mut count: u256 = 0
-    for owner in self.owners.to_mem().data() {
-      if self.confirmations[tx_id][owner] {
-        count += 1
-      }
-      if count == self.required_confirmations {
-        return true
-      }
-    }
-    return false
-  }
-
-  fn add_transaction(mut self, mut ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
-    self.validate_not_null(destination)
-    let tx_id: u256 = self.tx_count
-    self.transactions[tx_id] = Transaction (
-      destination,
-      value,
-      data,
-      data_length,
-      executed: false
-    )
-    self.tx_count += 1
-    ctx.emit(Submission(tx_id))
-    return tx_id
-  }
-
-  // Allows an owner to submit and confirm a transaction.
-  pub fn submit_transaction(mut self, mut ctx: Context, destination: address, value: u256, data: TransactionData, data_length: u16) -> u256{
-    let tx_id: u256 = self.add_transaction(ctx, destination, value, data, data_length)
-    self.confirm_transaction(ctx, tx_id)
-    return tx_id
-  }
-
-  /// Allows an owner to confirm a transaction
-  pub fn confirm_transaction(mut self, mut ctx: Context, tx_id: u256) {
-    self.validate_owner_exists(ctx.msg_sender())
-    self.validate_tx_exists(tx_id)
-    self.validate_not_confirmed(tx_id, ctx.msg_sender())
-
-    self.confirmations[tx_id][ctx.msg_sender()] = true
-    ctx.emit(Confirmation(owner: ctx.msg_sender(), tx_id))
-    self.execute_transaction(ctx, tx_id)
-  }
-
-  pub fn revoke_transaction(mut self, mut ctx: Context, tx_id: u256) {
-    self.validate_owner_exists(ctx.msg_sender())
-    self.validate_tx_exists(tx_id)
-    self.validate_confirmed(tx_id, ctx.msg_sender())
-
-    self.confirmations[tx_id][ctx.msg_sender()] = false
-    ctx.emit(Revocation(owner: ctx.msg_sender(), tx_id))
-  }
-
-  pub fn execute_transaction(mut self, ctx: Context, tx_id: u256) {
-    self.validate_not_executed(tx_id)
-    self.validate_owner_exists(ctx.msg_sender())
-    self.validate_confirmed(tx_id, ctx.msg_sender())
-
-    if self.is_confirmed(tx_id) {
-      let mut tx: Transaction = self.transactions[tx_id].to_mem()
-      self.transactions[tx_id].executed = true
-      // TODO: Handle failure
-      RawCallHelper::call(tx.destination, tx.value, tx)
-    }
-  }
-
-  pub fn add_owner(mut self, mut ctx: Context, owner: address) {
-    self.validate_only_wallet(ctx)
-    self.validate_owner_does_not_exist(owner)
-    self.validate_not_null(owner)
-    self.validate_valid_requirement(self.owners.to_mem().length() + 1, self.required_confirmations)
-
-    self.is_owner[owner] = true
-    let mut tmp: AddressArray = self.owners.to_mem()
-    tmp.push(owner)
-    self.owners = tmp
-    ctx.emit(OwnerAddition(owner))
-  }
-
-  pub fn remove_owner(mut self, mut ctx: Context, owner: address) {
-    self.validate_only_wallet(ctx)
-    self.validate_owner_exists(owner)
-    self.is_owner[owner] = false
-    let mut tmp: AddressArray = self.owners.to_mem()
-    tmp.remove(owner)
-
-    if self.required_confirmations > tmp.length() {
-      self.change_requirement(ctx, tmp.length())
-    }
-
-    self.owners = tmp
-    ctx.emit(OwnerRemoval(owner))
-  }
-
-  pub fn replace_owner(mut self, mut ctx: Context, owner: address, new_owner: address) {
-    self.validate_only_wallet(ctx)
-    self.validate_owner_exists(owner)
-    self.validate_owner_does_not_exist(new_owner)
-    let mut tmp: AddressArray = self.owners.to_mem()
-    tmp.remove(owner)
-    tmp.push(new_owner)
-    self.owners = tmp
-    self.is_owner[owner] = false
-    self.is_owner[new_owner] = true
-    ctx.emit(OwnerRemoval(owner))
-    ctx.emit(OwnerAddition(owner: new_owner))
-  }
-
-  pub fn change_requirement(mut self, mut ctx: Context, _ required: u256) {
-    self.required_confirmations = required
-    ctx.emit(RequirementChange(required))
-  }
-
-  pub fn get_owners(self) -> Array<address, { MAX_OWNER_COUNT }> {
-    return self.owners.to_mem().data()
-  }
-
-  // Returns a fixed size array containing the addresses that have confirmed the given tx_id
-  pub fn get_confirmations(self, tx_id: u256) -> Array<address, { MAX_OWNER_COUNT }> {
-    let mut confirmations: Array<address, { MAX_OWNER_COUNT }> = [address(0); MAX_OWNER_COUNT]
-    let mut i_match: u256 = 0
-    for owner in self.owners.to_mem().data() {
-      if self.confirmations[tx_id][owner] {
-        confirmations[i_match] = owner
-        i_match += 1
-      }
-    }
-    return confirmations
   }
 
 }
