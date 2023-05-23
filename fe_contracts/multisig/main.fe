@@ -29,6 +29,16 @@ struct Submission {
   pub tx_id: u256
 }
 
+struct Execution {
+  #indexed
+  pub tx_id: u256
+}
+
+struct ExecutionFailure {
+  #indexed
+  pub tx_id: u256
+}
+
 struct OwnerAddition {
     #indexed
     pub owner: address
@@ -169,7 +179,7 @@ contract MultiSig {
   }
 
   /// Allows anyone to execute a confirmed transaction.
-  pub fn execute_transaction(mut self, ctx: Context, tx_id: u256) {
+  pub fn execute_transaction(mut self, mut ctx: Context, tx_id: u256) {
     self.validate_not_executed(tx_id)
     self.validate_owner_exists(ctx.msg_sender())
     self.validate_confirmed(tx_id, ctx.msg_sender())
@@ -177,9 +187,13 @@ contract MultiSig {
     if self.is_confirmed(tx_id) {
       let mut tx: Transaction = self.transactions[tx_id].to_mem()
       self.transactions[tx_id].executed = true
-      // TODO: Handle failure
       let mut buf: RawCallBuffer = tx_to_buffer(tx)
-      ctx.raw_call(addr: tx.destination, value: tx.value, buf)
+      if ctx.raw_call(addr: tx.destination, value: tx.value, buf) {
+        ctx.emit(Execution(tx_id))
+      } else {
+        ctx.emit(ExecutionFailure(tx_id))
+        self.transactions[tx_id].executed = false
+      }
     }
   }
 

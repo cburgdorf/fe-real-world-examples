@@ -30,6 +30,8 @@ contract MultiSigTest is Test {
     event Confirmation(address indexed owner, uint indexed tx_id);
     event Revocation(address indexed owner, uint indexed tx_id);
     event Submission(uint indexed tx_id);
+    event Execution(uint indexed tx_id);
+    event ExecutionFailure(uint indexed tx_id);
     event OwnerAddition(address indexed owner);
     event OwnerRemoval(address indexed owner);
 
@@ -164,6 +166,8 @@ contract MultiSigTest is Test {
 
       vm.expectEmit(true, true, true, true);
       emit Confirmation(SECOND_OWNER, 0);
+      vm.expectEmit(true, true, true, true);
+      emit Execution(tx_id);
       vm.stopPrank();
       vm.startPrank(SECOND_OWNER);
       multisig.confirm_transaction(tx_id);
@@ -174,6 +178,41 @@ contract MultiSigTest is Test {
 
       uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
       assertEq(second_multisig_balance, initial_multisig_balance - 1);
+
+    }
+
+    function testExecutionFails() public {
+      bytes memory data = pad_to_length(hex"a9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", DATA_LENGTH);
+
+      address multisig_address = address(multisig);
+      vm.startPrank(BINANCE_ACCOUNT);
+      IERC20(DAI).transfer(address(multisig), 10000);
+      uint256 initial_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
+
+      vm.expectEmit(true, true, true, true);
+      emit Confirmation(FIRST_OWNER, 0);
+      vm.stopPrank();
+      vm.startPrank(FIRST_OWNER);
+      uint256 tx_id = multisig.submit_transaction(DAI, 0, data, 50); // intentionally use a too small data_length
+
+      address[50] memory confirmations_1 = multisig.get_confirmations(tx_id);
+      assertEq(confirmations_1[0], FIRST_OWNER);
+      assertEq(confirmations_1[1], ZERO_ADDRESS);
+
+      vm.expectEmit(true, true, true, true);
+      emit Confirmation(SECOND_OWNER, 0);
+      vm.expectEmit(true, true, true, true);
+      emit ExecutionFailure(tx_id);
+      vm.stopPrank();
+      vm.startPrank(SECOND_OWNER);
+      multisig.confirm_transaction(tx_id);
+      address[50] memory confirmations_2 = multisig.get_confirmations(tx_id);
+      assertEq(confirmations_2[0], FIRST_OWNER);
+      assertEq(confirmations_2[1], SECOND_OWNER);
+      assertEq(confirmations_2[2], ZERO_ADDRESS);
+
+      uint256 second_multisig_balance = IERC20(DAI).balanceOf(multisig_address);
+      assertEq(second_multisig_balance, initial_multisig_balance);
     }
 
     function testCanNotExecuteUnconfirmedTx() public {
