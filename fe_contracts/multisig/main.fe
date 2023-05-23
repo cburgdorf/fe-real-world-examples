@@ -1,5 +1,4 @@
-use std::evm::call_data_load
-use raw_call::{RawCallHelper, MemoryEncoding}
+use std::buf::{RawCallBuffer, MemoryBufferWriter}
 use address_array::{AddressArray}
 
 // The following implementation is based on the following solidity implementation
@@ -53,15 +52,18 @@ struct Transaction {
     pub executed: bool
 }
 
-impl MemoryEncoding for Transaction {
-    fn write_mem(self) {
-      // Very hacky way to copy the data into a fresh segment of memory
-      // In the future, the compiler would likely optimize that away
-      let mut x: TransactionData = self.data
-    }
-    fn byte_count(self) -> u16 {
-        return self.data_length
-    }
+fn tx_to_buffer(tx: Transaction) -> RawCallBuffer {
+  let mut buf: RawCallBuffer = RawCallBuffer::new(
+    input_len: tx.data_length,
+    output_len: 0
+  )
+  let mut writer: MemoryBufferWriter = buf.writer()
+  let mut i: u256 = 0
+  while i < tx.data_length {
+    writer.write_u8(value: tx.data[i])
+    i += 1
+  }
+  return buf
 }
 
 contract MultiSig {
@@ -176,7 +178,8 @@ contract MultiSig {
       let mut tx: Transaction = self.transactions[tx_id].to_mem()
       self.transactions[tx_id].executed = true
       // TODO: Handle failure
-      RawCallHelper::call(tx.destination, tx.value, tx)
+      let mut buf: RawCallBuffer = tx_to_buffer(tx)
+      ctx.raw_call(addr: tx.destination, value: tx.value, buf)
     }
   }
 
