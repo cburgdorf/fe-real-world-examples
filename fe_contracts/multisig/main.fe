@@ -70,7 +70,7 @@ fn tx_to_buffer(tx: Transaction) -> RawCallBuffer {
   let mut writer: MemoryBufferWriter = buf.writer()
   let mut i: u256 = 0
   while i < tx.data_length {
-    writer.write_u8(value: tx.data[i])
+    writer.write(value: tx.data[i])
     i += 1
   }
   return buf
