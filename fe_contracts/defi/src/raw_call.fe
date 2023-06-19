@@ -21,40 +21,42 @@ pub struct RawCallHelper {
 
     /// Call a function directly by its selector on the given address. 
     pub fn call<T: MemoryEncoding>(_ addr: address, _ selector: u32, data: T) -> RawCallResult{
+        let mut start: u256
         unsafe {
             let input_offset: u256 = RawCallHelper::avail()
             [selector]
             data.write_mem()
-
+            start = RawCallHelper::avail() + data.byte_count()
             let success: u256 = std::evm::call(
                 gas: std::evm::gas_remaining(),
                 addr,
                 value: 0,
                 input_offset,
                 input_len: 4 + data.byte_count(),
-                output_offset: 0,
-                output_len: 0
+                output_offset: start,
+                output_len: 32
             )
             if success == 0 {
                 revert
             }
         }
 
-        return RawCallResult()
+        return RawCallResult(start)
     }
 }
 
 /// Result of raw call. Provides conversions to common types. Custom return types
 /// can be implemented by interpreting the raw memory directly
 pub struct RawCallResult {
-
+    pub start: u256
     /// Convert the raw call result to a u256
     pub fn to_u256(self) -> u256 {
         unsafe {
-            let output: u256 = RawCallHelper::avail()
             let output_size: u256 = std::evm::return_data_size()
-            std::evm::return_data_copy(to_offset: output, from_offset: 0, len: output_size)
-            return std::evm::mload(offset: output)
+            if output_size < 32 {
+                revert
+            }
+            return std::evm::mload(offset: self.start)
         }
     }
 }
